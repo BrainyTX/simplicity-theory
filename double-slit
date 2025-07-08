@@ -1,0 +1,112 @@
+# --- FINALE VERSION 6.0 (Elektronenmikroskop-Fokus) ---
+import numpy as np
+import matplotlib.pyplot as plt
+import imageio.v3 as iio
+import os
+from scipy.stats import norm
+import random
+
+print("Starte die finale GIF-Erstellung (Version 6.0 - Elektronenmikroskop)...")
+
+# --- STELLSCHRAUBEN FÜR DIE MIKROSKOP-ANIMATION ---
+# 1. Neuer, extrem enger Fokusbereich.
+start_fokus = 1.2
+end_fokus = 1.25
+# 2. Wir behalten eine hohe Frame-Anzahl für maximale Detailtreue.
+anzahl_frames = 60 
+# 3. Wir verlangsamen die Wiedergabe noch weiter.
+fps_final = 5
+
+# Die Amplitudenschritte für unsere "Elektronenmikroskop-Aufnahme"
+amplitude_steps = np.linspace(start_fokus, end_fokus, anzahl_frames)
+
+# --- Parameter (unverändert) ---
+num_photons_per_pattern = 50000
+screen_y_lim = [-3.0, 3.0]
+wavelength_interf_pattern = np.pi / 2.5 
+transition_start_amp = 1.2 # Die Physik des Übergangs bleibt gleich
+transition_end_amp = 3.0   
+
+# --- Geometrie, Gitter, etc. (unverändert) ---
+slit_x_position = 5.0
+slit_width = 0.2
+slit_separation = 1.0
+screen_x_position = 10.0
+slit1_center_y = 0.5 * slit_separation
+slit2_center_y = -0.5 * slit_separation
+x_grid = np.linspace(0, screen_x_position + 2, 400)
+y_grid = np.linspace(screen_y_lim[0] - 1, screen_y_lim[1] + 1, 400)
+X, Y = np.meshgrid(x_grid, y_grid)
+frame_filenames = []
+
+# --- Simulation & Plotting ---
+print(f"Generiere {anzahl_frames} Bilder im Elektronenmikroskop-Bereich {start_fokus} bis {end_fokus}...")
+for i, current_amplitude_local in enumerate(amplitude_steps):
+    print(f"  Simuliere für Amplitude: {current_amplitude_local:.4f} (Frame {i+1}/{anzahl_frames})")
+
+    # Die gesamte Logik zur Mustererzeugung und -mischung bleibt exakt gleich.
+    r1 = np.sqrt((X - slit_x_position)**2 + (Y - slit1_center_y)**2)
+    r2 = np.sqrt((X - slit_x_position)**2 + (Y - slit2_center_y)**2)
+    k_interf = 2 * np.pi / wavelength_interf_pattern
+    psi1 = (1 / (r1 + 1e-9)) * np.exp(1j * k_interf * r1)
+    psi2 = (1 / (r2 + 1e-9)) * np.exp(1j * k_interf * r2)
+    intensity_wave = np.abs(psi1 + psi2)**2
+    intensity_wave /= (np.max(intensity_wave) + 1e-9)
+    particle_std_dev = 0.1
+    pdf_particle_1 = norm.pdf(Y, loc=slit1_center_y, scale=particle_std_dev)
+    pdf_particle_2 = norm.pdf(Y, loc=slit2_center_y, scale=particle_std_dev)
+    intensity_particle = pdf_particle_1 + pdf_particle_2
+    intensity_particle /= (np.max(intensity_particle) + 1e-9)
+    transition_progress = np.clip((current_amplitude_local - transition_start_amp) / (transition_end_amp - transition_start_amp), 0, 1)
+    transition_factor = (1 - np.cos(transition_progress * np.pi)) / 2
+    final_intensity_field = (1 - transition_factor) * intensity_wave + transition_factor * intensity_particle
+    brightness_factor = np.clip(current_amplitude_local / transition_start_amp, 0, 1)
+    final_intensity_field *= brightness_factor
+    final_intensity_field[X < slit_x_position] = 0.0
+    final_intensity_field = np.clip(final_intensity_field, 0, 1)
+    screen_x_idx = np.argmin(np.abs(x_grid - screen_x_position))
+    pdf_at_screen_raw = final_intensity_field[:, screen_x_idx]
+    pdf_at_screen = pdf_at_screen_raw / (np.max(pdf_at_screen_raw) + 1e-9)
+    impact_points = []
+    if current_amplitude_local > 0 and np.sum(pdf_at_screen) > 0:
+        num_generated = 0
+        while num_generated < num_photons_per_pattern:
+            y_idx = random.randint(0, len(y_grid) - 1)
+            if random.random() < pdf_at_screen[y_idx]:
+                impact_points.append(y_grid[y_idx])
+                num_generated += 1
+    
+    fig, ax = plt.subplots(figsize=(12, 8))
+    im = ax.imshow(final_intensity_field, cmap='hot', origin='lower',
+                   extent=[x_grid.min(), x_grid.max(), y_grid.min(), y_grid.max()],
+                   aspect='auto', vmin=0, vmax=1)
+    
+    cbar = fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04); cbar.set_label('Intensität')
+    ax.set_aspect('equal', adjustable='box')
+    ax.set_title(f'Doppelspalt-Übergang (Amplitude/Hitze: {current_amplitude_local:.3f}) | Welle->Teilchen: {transition_factor*100:.1f}%')
+    ax.set_xlim(x_grid.min(), x_grid.max()); ax.set_ylim(y_grid.min(), y_grid.max())
+    ax.set_xlabel('Position (x)'); ax.set_ylabel('Position (y)'); ax.grid(False)
+    ax.add_patch(plt.Rectangle((slit_x_position - 2, screen_y_lim[0]-1), 4, (screen_y_lim[1]-screen_y_lim[0])+2, color='black', zorder=2))
+    ax.add_patch(plt.Rectangle((slit_x_position - slit_width/2, slit1_center_y - slit_width/2), slit_width, slit_width, color='white', zorder=3))
+    ax.add_patch(plt.Rectangle((slit_x_position - slit_width/2, slit2_center_y - slit_width/2), slit_width, slit_width, color='white', zorder=3))
+    ax.axvline(screen_x_position, color='darkgray', linestyle='--', linewidth=2, zorder=2)
+    if impact_points:
+        hist_bins = np.linspace(screen_y_lim[0], screen_y_lim[1], 75)
+        counts, bin_edges = np.histogram(impact_points, bins=hist_bins, density=True)
+        if len(counts) > 0 and np.max(counts) > 0:
+            hist_x_max = np.max(counts) * 2.5
+            for j in range(len(counts)):
+                ax.barh(bin_edges[j], counts[j], height=hist_bins[1]-hist_bins[0], 
+                        left=screen_x_position,
+                        color='cyan', alpha=0.8, edgecolor=None, zorder=4)
+    fig.tight_layout()
+    fig.canvas.draw()
+    image_buf = fig.canvas.buffer_rgba()
+    image = np.asarray(image_buf)
+    frame_filenames.append(image) 
+    plt.close(fig)
+
+print("\nBilder generiert. Erstelle GIF...")
+iio.imwrite("welle_zu_teilchen_elektronenmikroskop.gif", frame_filenames, fps=fps_final, loop=0)
+
+print(f"\nGIF 'welle_zu_teilchen_elektronenmikroskop.gif' erfolgreich erstellt.")
