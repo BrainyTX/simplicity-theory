@@ -1,0 +1,125 @@
+import numpy as np
+import matplotlib.pyplot as plt
+import random # Used for generating random phases, frequencies, and amplitudes
+
+print("Starting 3D Urenergie Interference Simulation (Enhanced Model) v1.0...")
+
+# --- SIMULATION PARAMETERS (Your control knobs!) ---
+# Grid size for the 3D Urenergie space: grid_size x grid_size x grid_size points.
+# Each point represents a fundamental unit or 'facet' of Urenergie.
+grid_size = 10 
+num_points = grid_size**3 # Total number of Urenergie points in the simulated volume
+
+# Enhanced model parameters for "physical realism" based on Simplicity Theory:
+# In this model, each Urenergie point isn't just one oscillator, but hosts multiple.
+num_fields = 4      # Number of "field types" per Urenergie point (e.g., conceptual representations
+                    # of Electromagnetic, Higgs, Gluon, Weak fields, all emerging from Urenergie).
+num_freq_modes = 3  # Number of random frequency modes (oscillations) per field type, per Urenergie point.
+                    # This approximates a continuous frequency spectrum, where each field type
+                    # is a sum of various Urenergie oscillations.
+
+# Base amplitude of each individual Urenergie oscillation (raw "initial value").
+# This conceptually represents the hypothetically enormous "raw energy" of each single
+# Urenergie oscillation, prior to any destructive interference.
+# We set it to 1.0; the crucial effect will be visible in the REDUCTION relative to this value.
+amplitude_individual_raw_base = 1.0 
+
+# Time domain for simulating the oscillations.
+num_timesteps = 500 # Number of discrete points on the time axis for the simulation.
+total_time = 2 * np.pi # Total duration of the simulation, often chosen for a full sine/cosine cycle.
+time_vector = np.linspace(0, total_time, num_timesteps) # Generates evenly spaced time points.
+
+# --- INITIALIZATION OF RANDOM PROPERTIES FOR EACH OSCILLATOR ---
+# This is where the core mechanism of destructive interference is set up:
+# EACH point in the 3D grid, FOR EACH field type, FOR EACH frequency mode,
+# will have its own unique, randomly generated phase, frequency, and amplitude.
+# These properties are stored in 3D NumPy arrays: (num_points, num_fields, num_freq_modes).
+
+# Phases: Randomly distributed between 0 and 2*pi radians.
+# These random phases are CRITICAL. They ensure that the oscillations largely
+# cancel each other out when summed, as peaks of some waves align with troughs of others.
+phases = np.random.uniform(0, 2 * np.pi, (num_points, num_fields, num_freq_modes))
+
+# Frequencies: Randomly chosen within a range (e.g., 0.5 to 2.5).
+# This conceptually represents that quantum fluctuations exist across a spectrum of frequencies.
+# These frequencies are the 'omega' in the sine function: sin(omega * t + phi).
+frequencies = np.random.uniform(0.5, 2.5, (num_points, num_fields, num_freq_modes))
+
+# Amplitudes: Randomly distributed around a mean (e.g., Normal distribution around 1.0 with std dev 0.3).
+# This models natural variations in the strength of individual oscillation contributions,
+# making the model more robust than if all amplitudes were identical.
+amplitudes = np.random.normal(amplitude_individual_raw_base, 0.3, (num_points, num_fields, num_freq_modes))
+# Ensure amplitudes are not negative, as they represent energy contributions.
+# A small positive value (e.g., 0.001) is used instead of pure zero to avoid division by zero or log(0) issues later if needed.
+amplitudes[amplitudes < 0] = 0.001 
+
+
+# --- CALCULATION OF THE TOTAL OSCILLATION (The magic of 3D interference happens here) ---
+# This array will store the sum of all Urenergie oscillations for each point in time.
+# This represents the 'net' observable energy of the vacuum at each moment.
+total_oscillation = np.zeros(num_timesteps)
+
+print(f"Simulating {num_points} Urenergie points in a {grid_size}x{grid_size}x{grid_size} grid.")
+print(f"Each point hosts {num_fields} conceptual fields, each with {num_freq_modes} frequency modes.")
+print(f"Total number of individual oscillators in the system: {num_points * num_fields * num_freq_modes}")
+print(f"Base amplitude of a single raw oscillation (theoretical max): {amplitude_individual_raw_base}")
+
+# Calculate all individual oscillations across all points, fields, and frequency modes
+# and sum them up efficiently using NumPy's broadcasting capabilities.
+# This avoids slow nested Python loops, making the calculation extremely fast even for many oscillators.
+
+# 1. Expand 'frequencies' and 'phases' to align with 'time_vector' for broadcasting.
+#    np.newaxis adds a new dimension, allowing element-wise multiplication across time_vector.
+#    Resulting shape for frequencies_expanded and phases_expanded: (num_points, num_fields, num_freq_modes, 1)
+# 2. Multiply frequencies by time_vector: Resulting shape: (num_points, num_fields, num_freq_modes, num_timesteps)
+# 3. Add phases: Same shape.
+# 4. Apply sin function.
+# 5. Multiply by amplitudes (which broadcasts across num_timesteps): Same shape.
+all_individual_oscillations = amplitudes[:, :, :, np.newaxis] * np.sin(
+    frequencies[:, :, :, np.newaxis] * time_vector + phases[:, :, :, np.newaxis]
+)
+
+# Sum all these individual oscillations across the first three dimensions (points, fields, frequency modes).
+# This collapses the 4D array into a 1D array representing the total net oscillation over time.
+total_oscillation = np.sum(all_individual_oscillations, axis=(0, 1, 2))
+
+print("Calculation complete. Visualizing results...")
+
+# --- VISUALIZATION ---
+# Create a figure and an axes object for the plot.
+fig, ax = plt.subplots(figsize=(14, 7))
+
+# Plot the total oscillation.
+# This line visually demonstrates how the sum of thousands of large oscillations
+# results in a very small net amplitude due to destructive interference.
+ax.plot(time_vector, total_oscillation, color='cyan', linewidth=2, 
+        label='Total Oscillation (Net Vacuum Energy)')
+ax.set_title(f'Urenergie: Massive Cancellation via Field & Frequency Diversity\n'
+             f'({grid_size}^3 Points, {num_fields} Fields, {num_freq_modes} Freq. Modes)')
+ax.set_xlabel('Time (in Radians)')
+ax.set_ylabel('Net Amplitude (Sum of All Oscillations)')
+ax.grid(True) # Add a grid for better readability.
+ax.axhline(0, color='gray', linestyle='--', linewidth=0.5) # Add a horizontal line at y=0.
+
+# Add a legend to explain the plot.
+ax.legend()
+plt.tight_layout() # Adjust plot to prevent labels from overlapping.
+plt.savefig("urenergie_extended_3d_interference.png") # Save the plot to a file.
+print("Plot saved as 'urenergie_extended_3d_interference.png'")
+
+# --- ANALYSIS OF THE CANCELLATION EFFECT ---
+# This section quantifies the reduction achieved by destructive interference.
+print(f"\n--- Analysis of Cancellation ---")
+
+# The maximum absolute amplitude of the resulting total oscillation.
+# This represents the observed 'net' energy of the vacuum after all cancellations.
+max_total_amplitude = np.max(np.abs(total_oscillation))
+
+# The "raw" energy that *would have been* in the system IF NOTHING CANCELED OUT.
+# This is the sum of the amplitudes of ALL individual oscillators.
+# In this extended model, it's the sum of the randomly generated 'amplitudes' array.
+sum_of_raw_amplitudes = np.sum(amplitudes)
+
+print(f"Total number of oscillators in the system: {num_points * num_fields * num_freq_modes}")
+print(f"Average base amplitude per oscillator (raw): {amplitude_individual_raw_base}")
+print(f"Sum of raw amplitudes
