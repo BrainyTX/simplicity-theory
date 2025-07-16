@@ -1,0 +1,87 @@
+# Simplicity‑Theory : Quadrat‑Regel – Minimal‑Notebook
+# -------------------------------------------------------
+# Ziel  : Zeige qualitativ den Effekt der Quadrat‑Regel
+#         (Extra‑g = 1 – (Σ/Σ* )**2) auf ein kleines Set
+#         echte SPARC‑Mass‑Model‑Dateien.
+# Author: Logica – auto‑generated skeleton
+# Usage : 1) lege die *.dat‑Files in ./data/ ab
+#         2) passe ggf. SB2Sigma()‑Kalibrierung an
+
+import numpy as np
+import pandas as pd
+from pathlib import Path
+from astropy.io import ascii
+from functools import partial
+
+# -------------------------------------------------------
+# Konstante Schwelle (aus Deiner Ur‑Energie‑These)
+SIGMA_STAR = 124.0  # M_sun / pc^2
+
+# -------------------------------------------------------
+# Hilfsfunktionen
+
+def SB2Sigma(sb_disk: np.ndarray, ml: float = 0.5):
+    """Wandle SPARC‑Surface‑Brightness (L_sun/pc^2) -> Massendichte.
+    Sehr grobe Faustformel:  Σ ≈ ML * SB ;
+    ML (mass‑to‑light) hier als Konstantenplatzhalter.
+    """
+    return ml * sb_disk  # M_sun / pc^2
+
+
+def extra_factor(sig: np.ndarray):
+    """Quadrat‑Regel‑Verstärkung   f = 1 - (Σ/Σ*)^2   (geclippt 0..1)."""
+    ratio = np.clip(sig / SIGMA_STAR, 0.0, 1.0)
+    return 1.0 - ratio**2
+
+
+def load_rotmod(path: Path):
+    """Lese eine SPARC rotmod‑Datei und liefere Basisarrays."""
+    # Standard‑Header der Rotmod_LTG‑Dateien
+    cols = [
+        'ID','D','R','Vobs','eVobs',
+        'Vgas','Vdisk','Vbul','SBdisk','SBbul'
+    ]
+    tbl = ascii.read(path, names=cols)
+    return tbl
+
+
+def predict_velocity(tbl, ml=0.5):
+    """Berechne v_pred nach Quadrat‑Regel für jeden Radius."""
+    # Newton‑Baryon‑Geschwindigkeit
+    v_bar = np.sqrt(tbl['Vgas']**2 + tbl['Vdisk']**2 + tbl['Vbul']**2)
+
+    # Massendichte aus erster Zeile SBdisk (vereinfachte Annahme)
+    sigma_disk = SB2Sigma(tbl['SBdisk'], ml)
+
+    # Verstärkungsfaktor pro Radius
+    f = extra_factor(sigma_disk)
+
+    # Gesamt‑Geschwindigkeit  v_pred^2 = v_bar^2 * (1 + f)
+    v_pred = v_bar * np.sqrt(1.0 + f)
+    return v_pred, f
+
+
+def quick_summary(path: Path):
+    tbl = load_rotmod(path)
+    v_pred, f = predict_velocity(tbl)
+    mean_obs = np.mean(tbl['Vobs'])
+    mean_pred = np.mean(v_pred)
+    print(f"{path.stem:12s} | mean Vobs: {mean_obs:6.1f} km/s | mean Vpred: {mean_pred:6.1f} km/s | avg extra‑g: {np.mean(f):.2f}")
+
+# -------------------------------------------------------
+# Demo‑Lauf über hochgeladene 5 Dateien
+if __name__ == "__main__":
+    data_dir = Path("./data")  # lege .dat dort hinein
+    sample_files = [
+        "NGC2403_rotmod.dat",
+        "F574-1_rotmod.dat",
+        "UGC08699_rotmod.dat",
+        "NGC4013_rotmod.dat",
+        "NGC4138_rotmod.dat",
+    ]
+    for fname in sample_files:
+        p = data_dir / fname
+        if p.exists():
+            quick_summary(p)
+        else:
+            print(f"⚠️  Datei {fname} nicht gefunden – bitte in ./data/ ablegen.")
