@@ -18,10 +18,19 @@ Implements the protocol of Meta-Ledger Scaffold Part I, Appendix B
   control       deliberately wrong carrier: the linear axis g_bar / g_dagger,
                 tested with the same number of cycles across its range
 
-Verdict per channel: detection only if the amplitude is significant against
-the surrogates AND the phases are coherent across galaxies; otherwise label H.
-Phases of different carriers are not compared: that needs carrier offsets
-declared in advance (Mapping level), which the theory does not fix yet.
+Two readings of the phase are tested per channel:
+  common phase  (Part I, Appendix B) detection only if the amplitude is
+                significant against the surrogates AND the phases are
+                coherent across galaxies
+  domain-local  (Part IV, Step 20 C4) every domain (galaxy) has its own
+                anchor/phase, only the step ln(phi) is fixed: the power summed
+                incoherently over galaxies at omega_phi must exceed the power
+                at the other frequencies between omega_phi/2 and 2 omega_phi.
+                The sensitivity is calibrated by injecting modulations with a
+                random phase per galaxy.
+Otherwise label H. Phases of different carriers are not compared: that needs
+carrier offsets declared in advance (Mapping level), which the theory does not
+fix yet.
 
 Usage:
     python sparc/dsi_test.py
@@ -59,6 +68,50 @@ def surrogate_null(z, n_points, rng):
     return 2 * np.abs((z * phases).sum(axis=1)) / n_points
 
 
+def domain_power(r, x, starts, omegas):
+    """Phase-free power: sum over galaxies of |sum r exp(-i omega x)|^2.
+    Data must be sorted by galaxy; starts are the first index of each galaxy."""
+    e = r[:, None] * np.exp(-1j * np.outer(x, omegas))
+    return (np.abs(np.add.reduceat(e, starts, axis=0)) ** 2).sum(axis=0)
+
+
+def domain_local_test(r, x, galaxies, rng, omega, step, n_inject=20):
+    """Part IV, Step 20 C4: DSI with a free phase per galaxy.
+
+    Returns (galaxies used, power ratio at omega vs. median of the band,
+    fraction of band frequencies with at least the same power, amplitude in dex
+    detected in >= 90 % of injections)."""
+    order = np.argsort(galaxies, kind="stable")
+    r, x, galaxies = r[order], x[order], galaxies[order]
+    starts = np.flatnonzero(np.r_[True, galaxies[1:] != galaxies[:-1]])
+    sizes = np.diff(np.r_[starts, len(x)])
+    spans = np.maximum.reduceat(x, starts) - np.minimum.reduceat(x, starts)
+    keep_gal = spans / step >= 2
+    keep = np.repeat(keep_gal, sizes)
+    r, x, galaxies = r[keep], x[keep], galaxies[keep]
+    starts = np.flatnonzero(np.r_[True, galaxies[1:] != galaxies[:-1]])
+    gal_index = np.repeat(np.arange(len(starts)), np.diff(np.r_[starts, len(x)]))
+
+    resolution = 2 * np.pi / np.median(spans[keep_gal])
+    omegas = np.linspace(omega / 2, 2 * omega, 300)
+    band = omegas[(np.abs(omegas - omega) > resolution) & (np.abs(omegas - 2 * omega) > resolution)]
+    test_omegas = np.r_[omega, band]
+
+    def evaluate(rr):
+        power = domain_power(rr, x, starts, test_omegas)
+        return (power[1:] >= power[0]).mean(), power[0] / np.median(power[1:])
+
+    p, ratio = evaluate(r)
+    a90 = np.nan
+    for a in (0.005, 0.01, 0.015, 0.02, 0.03, 0.05, 0.08):
+        hits = sum(evaluate(r + a * np.cos(omega * x + rng.uniform(0, 2 * np.pi, len(starts))[gal_index]))[0]
+                   < ALPHA for _ in range(n_inject))
+        if hits >= 0.9 * n_inject:
+            a90 = a
+            break
+    return len(starts), ratio, p, a90
+
+
 def test_channel(name, r, x, galaxies, rng, omega=st.OMEGA_PHI, step=np.log(st.PHI)):
     """Runs the Appendix-B test on one carrier; returns spectrum and verdict."""
     r = detrend(r, x, galaxies)
@@ -86,8 +139,14 @@ def test_channel(name, r, x, galaxies, rng, omega=st.OMEGA_PHI, step=np.log(st.P
     spectrum = np.array([amplitude(galaxy_sums(r, x, w, groups), n) for w in omegas])
     p_le = (spectrum[np.abs(omegas - omega) > omega / 13] >= amplitude(galaxy_sums(r, x, omega, groups), n)).mean()
     print(f"   look-elsewhere: {p_le:.2f} of other frequencies reach the same amplitude"
-          f"  ->  {'DETECTION' if detected else 'label H'}")
-    return omegas / omega * st.OMEGA_PHI, spectrum, detected
+          f"  ->  common phase: {'DETECTION' if detected else 'label H'}")
+    n_gal, ratio, p_dom, a90 = domain_local_test(r, x, galaxies, rng, omega, step)
+    detected_dom = p_dom < ALPHA
+    print(f"   domain-local phases ({n_gal} galaxies): power at omega / band median = {ratio:.2f}, "
+          f"{p_dom:.2f} of band frequencies reach it; sensitivity (90 % of injections): "
+          f"{a90:.3f} dex ({100 * (10 ** a90 - 1):.1f} %)  ->  "
+          f"{'DETECTION' if detected_dom else 'label H'}")
+    return omegas / omega * st.OMEGA_PHI, spectrum, detected or detected_dom
 
 
 def main():
@@ -115,7 +174,7 @@ def main():
 
     primary = results["ln(g_bar / g_dagger)  [primary]"][2]
     verdict = "DETECTION" if primary else "no detection -> label H (horizon)"
-    print(f"\nVerdict on the pre-registered carrier (Appendix B, all-or-nothing): {verdict}")
+    print(f"\nVerdict on the pre-registered carrier (common or domain-local phase): {verdict}")
     if wrong:
         print("WARNING: the wrong carrier also shows a signal -> any detection is inadmissible")
 
