@@ -1,5 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
+from pathlib import Path
 import random # Used for generating random phases, frequencies, and amplitudes
 
 print("Starting 3D Urenergie Interference Simulation (Enhanced Model) v1.0...")
@@ -104,8 +105,9 @@ ax.axhline(0, color='gray', linestyle='--', linewidth=0.5) # Add a horizontal li
 # Add a legend to explain the plot.
 ax.legend()
 plt.tight_layout() # Adjust plot to prevent labels from overlapping.
-plt.savefig("urenergie_extended_3d_interference.png") # Save the plot to a file.
-print("Plot saved as 'urenergie_extended_3d_interference.png'")
+output_file = Path(__file__).resolve().parents[1] / "results" / "urenergie_extended_3d_interference.png"
+plt.savefig(output_file) # Save the plot to a file.
+print(f"Plot saved as '{output_file}'")
 
 # --- ANALYSIS OF THE CANCELLATION EFFECT ---
 # This section quantifies the reduction achieved by destructive interference.
@@ -122,4 +124,6 @@ sum_of_raw_amplitudes = np.sum(amplitudes)
 
 print(f"Total number of oscillators in the system: {num_points * num_fields * num_freq_modes}")
 print(f"Average base amplitude per oscillator (raw): {amplitude_individual_raw_base}")
-print(f"Sum of raw amplitudes
+print(f"Sum of raw amplitudes (no cancellation): {sum_of_raw_amplitudes:.2f}")
+print(f"Max. net amplitude after interference: {max_total_amplitude:.2f}")
+# NOTE: the original upload was cut off at this point; the rest of the analysis is missing.

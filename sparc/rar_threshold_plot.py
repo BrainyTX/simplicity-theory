@@ -1,15 +1,20 @@
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+from pathlib import Path
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+SUMMARY_FILE = REPO_ROOT / "data" / "sparc" / "SPARC_summary.csv"
+OUTPUT_FILE = REPO_ROOT / "results" / "RAR_threshold.pdf"
 
 # =========================================================================
 # 1. Load and Clean SPARC Data
 # =========================================================================
-# Assumption: 'SPARC_summary.csv' is in the same directory as this script
+# 'SPARC_summary.csv' lives in data/sparc/ (relative to the repository root)
 try:
-    df = pd.read_csv('SPARC_summary.csv')
+    df = pd.read_csv(SUMMARY_FILE)
 except FileNotFoundError:
-    print("❌ Error: 'SPARC_summary.csv' not found.")
+    print(f"❌ Error: '{SUMMARY_FILE}' not found.")
     print("Please ensure the file is in the same directory as the script.")
     exit(1)
 
@@ -133,7 +138,7 @@ plt.figtext(0.5, 0.01, 'Python code for data verification available on GitHub.',
             horizontalalignment='center', fontsize=8, color='gray')
 
 # Save and display the plot
-plt.savefig("RAR_threshold.pdf", bbox_inches='tight', dpi=300) # 'bbox_inches='tight'' prevents clipping of labels/elements
+plt.savefig(OUTPUT_FILE, bbox_inches='tight', dpi=300) # 'bbox_inches='tight'' prevents clipping of labels/elements
 plt.close() # Close the plot figure to ensure the script terminates correctly
 
-print("Plot RAR_threshold.pdf saved successfully.")
+print(f"Plot {OUTPUT_FILE} saved successfully.")

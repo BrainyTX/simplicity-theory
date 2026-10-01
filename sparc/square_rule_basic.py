@@ -44,9 +44,9 @@
 # --- USAGE ---
 # 1. Make sure you have Python installed with the required libraries:
 #    pip install pandas numpy matplotlib
-# 2. Create a folder named `rotmod_LTG` in the same directory as this script.
-# 3. Place your `*_rotmod.dat` files from the SPARC database into this folder.
-# 4. Run the script: python your_script_name.py
+# 2. The SPARC `*_rotmod.dat` files are expected in `data/sparc/Rotmod_LTG/`
+#    (relative to the repository root).
+# 3. Run the script: python sparc/square_rule_basic.py
 #
 # =============================================================================
 
@@ -91,8 +91,8 @@ ML_RATIO = 0.5
 # --- Path Configuration ---
 
 # Name of the directory containing the SPARC data files.
-# The script expects the following structure: ./rotmod_LTG/GalaxyName_rotmod.dat
-DATA_DIR = Path("./rotmod_LTG")
+# The script expects the following structure: data/sparc/Rotmod_LTG/GalaxyName_rotmod.dat
+DATA_DIR = Path(__file__).resolve().parents[1] / "data" / "sparc" / "Rotmod_LTG"
 
 
 # -----------------------------------------------------------------------------
@@ -128,13 +128,13 @@ def load_sparc_data(path: Path) -> pd.DataFrame | None:
 
     # We use pandas.read_csv for its robustness.
     # - `comment='#'`: Ignores any lines starting with a hash.
-    # - `delim_whitespace=True`: Treats any amount of whitespace as a separator.
+    # - `sep=r'\s+'`: Treats any amount of whitespace as a separator.
     # - `names=...`: Explicitly assigns our column names.
     try:
         df = pd.read_csv(
             path,
             comment='#',
-            delim_whitespace=True,
+            sep=r'\s+',
             names=col_names
         )
         # Extract the galaxy name from the filename for later use in plots/tables.
