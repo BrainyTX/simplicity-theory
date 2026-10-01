@@ -1,3 +1,14 @@
+import sympy as sp
+
+# ==============================================================================
+# S2-0: SETUP (same definitions as in Appendix S1)
+# ==============================================================================
+# R: Radius of the sphere
+R = sp.symbols('R', positive=True)
+
+# The total volume of a single, pristine sphere.
+V_full = sp.Rational(4, 3) * sp.pi * R**3
+
 # ==============================================================================
 # S2-2: THE INCLUSION-EXCLUSION SUM
 # ==============================================================================

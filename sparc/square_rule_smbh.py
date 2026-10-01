@@ -3,10 +3,10 @@
 # =============================================================================
 #             ░░  turnkey, beginner-friendly, fully commented  ░░
 #
-# Folder layout expected
-# ├─ rotmod_LTG/            *_rotmod.dat      (175 RC files)
-# ├─ SPARC_Lelli2016c.txt   Table1.mrt, just renamed
-# └─ plots/                 created automatically
+# Folder layout expected (relative to the repository root)
+# ├─ data/sparc/Rotmod_LTG/            *_rotmod.dat   (SPARC rotation curves)
+# ├─ data/sparc/SPARC_Lelli2016c.txt   Table1.mrt, just renamed (not included)
+# └─ results/sparc_galaxy_fits/        created automatically
 #
 # Requires:  pip install pandas numpy matplotlib seaborn
 # =============================================================================
@@ -26,9 +26,10 @@ M_L_BULGE    = 0.6         # M/L 3.6 µm, bulge (slightly higher)
 BH_SLOPE     = 1.05        # McConnell & Ma (2013)
 BH_INTERCEPT = 8.46        # log10(M_BH / M⊙) at M_bulge = 1e11 M⊙
 
-DATA_DIR  = Path("rotmod_LTG")
-META_FILE = Path("SPARC_Lelli2016c.txt")   # the renamed Table1.mrt
-PLOTS_DIR = Path("plots")
+REPO_ROOT = Path(__file__).resolve().parents[1]
+DATA_DIR  = REPO_ROOT / "data" / "sparc" / "Rotmod_LTG"
+META_FILE = REPO_ROOT / "data" / "sparc" / "SPARC_Lelli2016c.txt"   # the renamed Table1.mrt
+PLOTS_DIR = REPO_ROOT / "results" / "sparc_galaxy_fits"
 
 # --------------------------------------------------------------------------- #
 # 1) MATPLOTLIB LOOK & FEEL  (DejaVu Sans has full Unicode & math glyphs)

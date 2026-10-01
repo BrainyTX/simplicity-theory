@@ -3,6 +3,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import imageio.v3 as iio
 import os
+from pathlib import Path
 from scipy.stats import norm
 import random
 
@@ -107,6 +108,7 @@ for i, current_amplitude_local in enumerate(amplitude_steps):
     plt.close(fig)
 
 print("\nBilder generiert. Erstelle GIF...")
-iio.imwrite("welle_zu_teilchen_elektronenmikroskop.gif", frame_filenames, fps=fps_final, loop=0)
+gif_datei = Path(__file__).resolve().parents[1] / "results" / "double_slit_transition.gif"
+iio.imwrite(gif_datei, frame_filenames, fps=fps_final, loop=0)
 
-print(f"\nGIF 'welle_zu_teilchen_elektronenmikroskop.gif' erfolgreich erstellt.")
+print(f"\nGIF '{gif_datei}' erfolgreich erstellt.")
