@@ -26,7 +26,7 @@ simplicity-theory/
 │   ├── fit_sigma_crit.py                 Which Σ* do the data prefer? (per galaxy, global, M/L systematics)
 │   ├── compare_models.py                 Newton, Square-Rule, RAR, MOND, three-phase model side by side
 │   ├── rar_phase_plots.py                RAR figure and phase diagram for all 2910 data points
-│   ├── plateau_test.py                   Plateau height vs. mass: v⁴ = G·M·2πGΣ* (baryonic Tully-Fisher)
+│   ├── plateau_test.py                   Plateau height vs. baryonic mass: v⁴ = G·M·2πGΣ* (Tully-Fisher)
 │   ├── dsi_test.py                       Pre-registered DSI screen test (log-frequency 2π/ln φ) on RAR residuals
 │   ├── square_rule_basic.py              Square-Rule f(Σ) = 1 − (Σ/Σ*)² applied to all galaxies
 │   ├── square_rule_smbh.py               Extended Square-Rule (bulge, SMBH, age shift) → per-galaxy plots
@@ -40,6 +40,7 @@ simplicity-theory/
 │
 ├── data/sparc/              Input data
 │   ├── Rotmod_LTG/                       152 SPARC mass-model files (*_rotmod.dat)
+│   ├── BTFR_Lelli2016a.mrt               Baryonic mass, flat velocity, gas fraction, SBeff (118 galaxies)
 │   └── SPARC_summary.csv                 μ₀ and dark-matter fraction f_DM per galaxy
 │
 ├── results/                 Generated output
@@ -144,6 +145,11 @@ The rotation curves in `data/sparc/Rotmod_LTG/` are from the SPARC database:
 > *SPARC: Mass Models for 175 Disk Galaxies with Spitzer Photometry at 3.6 μm
 > and Accurate Rotation Curves*, AJ 152, 157.
 > <http://astroweb.cwru.edu/SPARC/>
+
+`data/sparc/BTFR_Lelli2016a.mrt` (data behind Fig. 2) is from:
+
+> F. Lelli, S. S. McGaugh, J. M. Schombert (2016),
+> *The Small Scatter of the Baryonic Tully-Fisher Relation*, ApJL 816, L14.
 
 ## License
 

@@ -94,6 +94,25 @@ def load_sparc(ml_disk: float = ML_DISK, ml_bulge: float = ML_BULGE,
     return add_mass_model(df, ml_disk, ml_bulge)
 
 
+BTFR_FILE = REPO_ROOT / "data" / "sparc" / "BTFR_Lelli2016a.mrt"
+BTFR_COLUMNS = ["galaxy", "Dist", "e_Dist", "f_Dist", "logMb", "e_logMb",
+                "logVf", "e_logVf", "Fg", "SBeff", "Reff"]
+
+
+def load_btfr(path: Path = BTFR_FILE) -> pd.DataFrame:
+    """Baryonic Tully-Fisher table of Lelli, McGaugh & Schombert (2016, ApJL 816, L14):
+    baryonic mass Mb and flat velocity Vf (log10, with errors), gas fraction Fg,
+    effective stellar surface density SBeff [M_sun/pc^2] and radius Reff [kpc],
+    all for a stellar M/L of 0.5 at 3.6 micron.
+
+    The byte positions in the file header do not match the data rows, but all
+    values are whitespace separated and names contain no spaces.
+    """
+    lines = path.read_text().splitlines()
+    start = max(i for i, line in enumerate(lines) if line.startswith("-----")) + 1
+    return pd.read_csv(path, sep=r"\s+", names=BTFR_COLUMNS, skiprows=start)
+
+
 def add_mass_model(df: pd.DataFrame, ml_disk: float = ML_DISK,
                    ml_bulge: float = ML_BULGE) -> pd.DataFrame:
     """Adds baryonic and observed accelerations and the surface densities.
