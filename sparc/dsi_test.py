@@ -4,19 +4,24 @@ dsi_test.py – pre-registered DSI screen test on the SPARC RAR residuals.
 Implements the protocol of Meta-Ledger Scaffold Part I, Appendix B
 (DOI 10.5281/zenodo.19413799) on the SPARC data:
 
-  carrier       mu = g_bar / g_dagger (dimensionless), xi = ln(mu)
   observable    RAR residual log10(g_obs / g_RAR) in dex
-  detrending    (declared) per-galaxy mean removed, then a global quadratic in xi
+  carriers      primary (pre-registered): xi = ln(g_bar / g_dagger)
+                further channels: ln(Sigma_stars / Sigma*), ln(R / kpc)
+  detrending    (declared) per-galaxy mean removed, then a global quadratic
+                in the carrier coordinate
   frequency     fixed a priori: omega_phi = 2*pi/ln(phi) = 13.057, plus 2*omega_phi
   nulls         (1) surrogates: each galaxy gets a random phase (keeps the
                     structure inside a galaxy, destroys a common phase)
                 (2) look-elsewhere: same amplitude at other frequencies
   coherence     Rayleigh test of the per-galaxy phases (galaxies spanning
-                >= 2 phi-steps) and phase difference of two random halves
-  control       deliberately wrong carrier xi = ln(R)
+                >= 2 phi-steps)
+  control       deliberately wrong carrier: the linear axis g_bar / g_dagger,
+                tested with the same number of cycles across its range
 
-Verdict: detection only if the amplitude is significant against the
-surrogates AND the phases are coherent across galaxies; otherwise label H.
+Verdict per channel: detection only if the amplitude is significant against
+the surrogates AND the phases are coherent across galaxies; otherwise label H.
+Phases of different carriers are not compared: that needs carrier offsets
+declared in advance (Mapping level), which the theory does not fix yet.
 
 Usage:
     python sparc/dsi_test.py
@@ -25,6 +30,7 @@ Output:
 """
 import matplotlib.pyplot as plt
 import numpy as np
+import pandas as pd
 
 import sparc_tools as st
 
@@ -32,10 +38,10 @@ N_SURROGATES = 5000
 ALPHA = 0.05
 
 
-def detrended_residuals(df, xi):
-    r = st.log_residuals(df, st.rar(df))
-    r = r - df.assign(r=r).groupby("galaxy")["r"].transform("mean").to_numpy()
-    return r - np.polyval(np.polyfit(xi, r, 2), xi)
+def detrend(r, x, galaxies):
+    """Declared detrending: per-galaxy mean removed, then a global quadratic in x."""
+    r = r - (pd.Series(r).groupby(galaxies).transform("mean")).to_numpy()
+    return r - np.polyval(np.polyfit(x, r, 2), x)
 
 
 def galaxy_sums(r, x, omega, groups):
@@ -53,55 +59,74 @@ def surrogate_null(z, n_points, rng):
     return 2 * np.abs((z * phases).sum(axis=1)) / n_points
 
 
+def test_channel(name, r, x, galaxies, rng, omega=st.OMEGA_PHI, step=np.log(st.PHI)):
+    """Runs the Appendix-B test on one carrier; returns spectrum and verdict."""
+    r = detrend(r, x, galaxies)
+    groups = list(pd.Series(np.arange(len(r))).groupby(galaxies).indices.values())
+    n = len(r)
+    span = np.array([np.ptp(x[idx]) / step for idx in groups])
+    print(f"\n== {name}: {n} points, {np.ptp(x) / step:.1f} steps in total, "
+          f"median {np.median(span):.1f} per galaxy")
+    detected = False
+    for label, w in [("fundamental", omega), ("harmonic 2x", 2 * omega)]:
+        z = galaxy_sums(r, x, w, groups)
+        a = amplitude(z, n)
+        null = surrogate_null(z, n, rng)
+        p_sur = (null >= a).mean()
+        sel = span >= 2
+        rayleigh_r = abs(np.exp(1j * np.angle(z[sel])).mean())
+        p_ray = np.exp(-sel.sum() * rayleigh_r ** 2)
+        hit = p_sur < ALPHA and p_ray < ALPHA
+        if label == "fundamental":
+            detected = hit
+        print(f"   {label}: amplitude {a:.4f} dex ({100 * (10 ** a - 1):.1f} %), "
+              f"surrogates p = {p_sur:.3f} (95 % threshold {np.quantile(null, 0.95):.4f} dex), "
+              f"Rayleigh over {sel.sum()} galaxies p = {p_ray:.3f}")
+    omegas = np.linspace(3, 40, 400) * omega / st.OMEGA_PHI
+    spectrum = np.array([amplitude(galaxy_sums(r, x, w, groups), n) for w in omegas])
+    p_le = (spectrum[np.abs(omegas - omega) > omega / 13] >= amplitude(galaxy_sums(r, x, omega, groups), n)).mean()
+    print(f"   look-elsewhere: {p_le:.2f} of other frequencies reach the same amplitude"
+          f"  ->  {'DETECTION' if detected else 'label H'}")
+    return omegas / omega * st.OMEGA_PHI, spectrum, detected
+
+
 def main():
     st.RESULTS_DIR.mkdir(parents=True, exist_ok=True)
     rng = np.random.default_rng(42)
     df = st.load_sparc()
-    xi = np.log(df["g_bar"] / st.g_dagger(st.SIGMA_STAR)).to_numpy()
-    r = detrended_residuals(df, xi)
-    groups = list(df.groupby("galaxy").indices.values())
-    n = len(r)
-    ln_phi = np.log(st.PHI)
-    span = np.array([np.ptp(xi[idx]) / ln_phi for idx in groups])
-    print(f"Carrier xi = ln(g_bar/g_dagger): {np.ptp(xi) / ln_phi:.1f} phi-steps in total, "
-          f"median {np.median(span):.1f} per galaxy; residual scatter {np.std(r):.3f} dex\n")
+    r_all = st.log_residuals(df, st.rar(df))
+    gal = df["galaxy"].to_numpy()
+    x_gbar = (df["g_bar"] / st.g_dagger(st.SIGMA_STAR)).to_numpy()
+    stars = (df["sigma_stars"] > 0).to_numpy()
 
-    omegas = np.linspace(3, 40, 600)
-    spectrum = np.array([amplitude(galaxy_sums(r, xi, w, groups), n) for w in omegas])
+    channels = {
+        "ln(g_bar / g_dagger)  [primary]": (r_all, np.log(x_gbar), gal),
+        "ln(Sigma_stars / Sigma*)": (r_all[stars], np.log(df["sigma_stars"].to_numpy()[stars] / st.SIGMA_STAR), gal[stars]),
+        "ln(R / kpc)": (r_all, np.log(df["R"].to_numpy()), gal),
+    }
+    results = {name: test_channel(name, *args, rng) for name, args in channels.items()}
 
-    detected = {}
-    for label, w in [("fundamental 2pi/ln(phi)", st.OMEGA_PHI), ("harmonic 2x", 2 * st.OMEGA_PHI)]:
-        z = galaxy_sums(r, xi, w, groups)
-        a = amplitude(z, n)
-        null = surrogate_null(z, n, rng)
-        p_sur = (null >= a).mean()
-        p_le = (spectrum[np.abs(omegas - w) > 1.0] >= a).mean()
-        sel = span >= 2
-        rayleigh_r = abs(np.exp(1j * np.angle(z[sel])).mean())
-        p_ray = np.exp(-sel.sum() * rayleigh_r ** 2)
-        idx = rng.permutation(len(z))
-        dphi = np.degrees(np.angle(z[idx[: len(z) // 2]].sum() / z[idx[len(z) // 2:]].sum()))
-        detected[label] = p_sur < ALPHA and p_ray < ALPHA
-        print(f"{label}: amplitude {a:.4f} dex ({100 * (10 ** a - 1):.1f} %), "
-              f"phase {np.degrees(np.angle(z.sum())):+.0f} deg")
-        print(f"   surrogates p = {p_sur:.3f} (95 % detection threshold {np.quantile(null, 0.95):.4f} dex), "
-              f"look-elsewhere {p_le:.2f}")
-        print(f"   phase coherence: Rayleigh over {sel.sum()} galaxies R = {rayleigh_r:.3f}, p = {p_ray:.3f}; "
-              f"two random halves differ by {dphi:+.0f} deg")
+    # wrong carrier: linear axis with as many cycles over its range as the primary carrier
+    xi = np.log(x_gbar)
+    omega_lin = st.OMEGA_PHI * np.ptp(xi) / np.ptp(x_gbar)
+    print("\nControl, wrong carrier (linear axis g_bar/g_dagger):", end="")
+    _, _, wrong = test_channel("linear g_bar / g_dagger  [control]", r_all, x_gbar, gal, rng,
+                               omega=omega_lin, step=2 * np.pi / omega_lin)
 
-    z_wrong = galaxy_sums(r, np.log(df["R"].to_numpy()), st.OMEGA_PHI, groups)
-    a_wrong = amplitude(z_wrong, n)
-    p_wrong = (surrogate_null(z_wrong, n, rng) >= a_wrong).mean()
-    print(f"\nControl, wrong carrier ln(R): amplitude {a_wrong:.4f} dex, p = {p_wrong:.3f}")
-    verdict = "DETECTION" if detected["fundamental 2pi/ln(phi)"] else "no detection -> label H (horizon)"
-    print(f"\nVerdict (Appendix B, all-or-nothing): {verdict}")
+    primary = results["ln(g_bar / g_dagger)  [primary]"][2]
+    verdict = "DETECTION" if primary else "no detection -> label H (horizon)"
+    print(f"\nVerdict on the pre-registered carrier (Appendix B, all-or-nothing): {verdict}")
+    if wrong:
+        print("WARNING: the wrong carrier also shows a signal -> any detection is inadmissible")
 
-    fig, ax = plt.subplots(figsize=(9, 4.5))
-    ax.plot(omegas, spectrum, color="0.3", lw=1.2, label="amplitude of RAR residuals")
-    ax.axvline(st.OMEGA_PHI, color="tab:red", ls="--", label="2π/ln φ = 13.057 (pre-registered)")
-    ax.axvline(2 * st.OMEGA_PHI, color="tab:orange", ls=":", label="harmonic 26.11")
-    ax.set_xlabel("log-frequency ω  (per unit of ln(g_bar/g†))")
-    ax.set_ylabel("amplitude  [dex]")
+    fig, ax = plt.subplots(figsize=(9, 4.8))
+    styles = ["-", "--", ":"]
+    for (name, (om, spec, _)), ls in zip(results.items(), styles):
+        ax.plot(om, spec, ls=ls, lw=1.3, label=name)
+    ax.axvline(st.OMEGA_PHI, color="tab:red", lw=1.5, alpha=0.6, label="2π/ln φ = 13.057 (pre-registered)")
+    ax.axvline(2 * st.OMEGA_PHI, color="tab:orange", ls=":", alpha=0.8, label="harmonic 26.11")
+    ax.set_xlabel("log-frequency ω  (per unit of the log carrier)")
+    ax.set_ylabel("amplitude of RAR residuals  [dex]")
     ax.set_title(f"DSI screen test on SPARC (Appendix B): {verdict}")
     ax.legend(fontsize=8)
     fig.tight_layout()
