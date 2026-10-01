@@ -27,7 +27,7 @@ simplicity-theory/
 │   ├── compare_models.py                 Newton, Square-Rule, RAR, MOND, three-phase model side by side
 │   ├── rar_phase_plots.py                RAR figure and phase diagram for all 2910 data points
 │   ├── plateau_test.py                   Plateau height vs. baryonic mass: v⁴ = G·M·2πGΣ* (Tully-Fisher)
-│   ├── dsi_test.py                       Pre-registered DSI screen test (log-frequency 2π/ln φ) on RAR residuals
+│   ├── dsi_test.py                       DSI test (log-frequency 2π/ln φ) on RAR residuals and stellar profiles
 │   ├── square_rule_basic.py              Square-Rule f(Σ) = 1 − (Σ/Σ*)² applied to all galaxies
 │   ├── square_rule_smbh.py               Extended Square-Rule (bulge, SMBH, age shift) → per-galaxy plots
 │   ├── rar_fit.ipynb                     Older Σ_crit fit (superseded by fit_sigma_crit.py, see Notes)

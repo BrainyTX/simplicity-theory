@@ -17,6 +17,10 @@ Implements the protocol of Meta-Ledger Scaffold Part I, Appendix B
                 >= 2 phi-steps)
   control       deliberately wrong carrier: the linear axis g_bar / g_dagger,
                 tested with the same number of cycles across its range
+  profiles      16-stage scaffold, Box 8 / prediction P10: the baryonic
+                profile itself should carry the modulation. Observable
+                log10 SBdisk on carrier ln(R / kpc), detrended per galaxy by a
+                cubic in ln R (a cubic cannot mimic several phi-periods).
 
 Two readings of the phase are tested per channel:
   common phase  (Part I, Appendix B) detection only if the amplitude is
@@ -112,6 +116,20 @@ def domain_local_test(r, x, galaxies, rng, omega, step, n_inject=20):
     return len(starts), ratio, p, a90
 
 
+def profile_residuals(df, min_points=6):
+    """log10 SBdisk minus a per-galaxy cubic in ln R (declared detrending)."""
+    r, x, gal = [], [], []
+    for name, g in df[df["SBdisk"] > 0].groupby("galaxy"):
+        if len(g) < min_points:
+            continue
+        lx = np.log(g["R"].to_numpy())
+        y = np.log10(g["SBdisk"].to_numpy())
+        r.append(y - np.polyval(np.polyfit(lx, y, 3), lx))
+        x.append(lx)
+        gal.append(np.full(len(g), name))
+    return np.concatenate(r), np.concatenate(x), np.concatenate(gal)
+
+
 def test_channel(name, r, x, galaxies, rng, omega=st.OMEGA_PHI, step=np.log(st.PHI)):
     """Runs the Appendix-B test on one carrier; returns spectrum and verdict."""
     r = detrend(r, x, galaxies)
@@ -172,6 +190,10 @@ def main():
     _, _, wrong = test_channel("linear g_bar / g_dagger  [control]", r_all, x_gbar, gal, rng,
                                omega=omega_lin, step=2 * np.pi / omega_lin)
 
+    print("\nBaryonic profiles (16-stage scaffold, Box 8 / P10):", end="")
+    results["log SBdisk on ln(R / kpc)  [P10]"] = test_channel(
+        "log SBdisk on ln(R / kpc)  [P10]", *profile_residuals(df), rng)
+
     primary = results["ln(g_bar / g_dagger)  [primary]"][2]
     verdict = "DETECTION" if primary else "no detection -> label H (horizon)"
     print(f"\nVerdict on the pre-registered carrier (common or domain-local phase): {verdict}")
@@ -179,13 +201,13 @@ def main():
         print("WARNING: the wrong carrier also shows a signal -> any detection is inadmissible")
 
     fig, ax = plt.subplots(figsize=(9, 4.8))
-    styles = ["-", "--", ":"]
+    styles = ["-", "--", ":", "-."]
     for (name, (om, spec, _)), ls in zip(results.items(), styles):
         ax.plot(om, spec, ls=ls, lw=1.3, label=name)
     ax.axvline(st.OMEGA_PHI, color="tab:red", lw=1.5, alpha=0.6, label="2π/ln φ = 13.057 (pre-registered)")
     ax.axvline(2 * st.OMEGA_PHI, color="tab:orange", ls=":", alpha=0.8, label="harmonic 26.11")
     ax.set_xlabel("log-frequency ω  (per unit of the log carrier)")
-    ax.set_ylabel("amplitude of RAR residuals  [dex]")
+    ax.set_ylabel("amplitude of residuals  [dex]")
     ax.set_title(f"DSI screen test on SPARC (Appendix B): {verdict}")
     ax.legend(fontsize=8)
     fig.tight_layout()
