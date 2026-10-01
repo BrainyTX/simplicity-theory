@@ -1,0 +1,8 @@
+model,median_residual_dex,scatter_dex,chi2_global,best_for_n_galaxies,median_galaxy_chi2
+Newton,0.4369,0.3094,6.132e+04,8,1424
+Square-Rule (original),0.1877,0.2593,2.179e+04,8,534.6
+RAR (McGaugh 2016),-0.002933,0.1984,5764,21,147.6
+MOND (simple mu),-0.01073,0.1983,5781,65,154.6
+Three-phase,0.06709,0.2045,7654,44,157.3
+Three-phase hybrid,0.04185,0.208,7496,6,192.2
+Three-phase (gas exponent 0.55),0.052,0.2096,7519,,166.5
